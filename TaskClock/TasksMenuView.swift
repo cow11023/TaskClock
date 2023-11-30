@@ -75,18 +75,20 @@ struct TasksMenuView: View {
 
     private func loadTasks() {
         // 使用 CloudKit 查询任务列表数据
-        let container = CKContainer.default()
-        let privateDatabase = container.privateCloudDatabase
-        
+        let container = CKContainer(identifier: "iCloud.TaskClock")
+        //let container = CKContainer.default()
+        let db = container.privateCloudDatabase
         let query = CKQuery(recordType: "Task", predicate: NSPredicate(value: true))
         
-        privateDatabase.perform(query, inZoneWith: nil) { (records, error) in
-                if let error = error {
-                    print("Error querying tasks: \(error.localizedDescription)")
+        
+        db.perform(query, inZoneWith: nil) { (records, queryError) in
+            if let error = queryError {
+                    print("查询任务时出错: \(error.localizedDescription)")
                 } else if let records = records {
                     DispatchQueue.main.async {
                         self.tasks = records.map { record in
                             Task(
+                                
                                 id: record.recordID.recordName,
                                 name: record["name"] as? String ?? "",
                                 SceduleID: record["scheduleID"] as? Int64 ?? 0,
@@ -96,12 +98,9 @@ struct TasksMenuView: View {
                             )
                         }
                     }
+                    print("开始打印数据",self.tasks)
                 }
             }
-
-        
-
     }
-
 }
 
