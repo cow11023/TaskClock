@@ -44,7 +44,7 @@ extension String {
     // 计算中文字符数量的扩展
     func countChineseCharacters() -> Int {
         var count = 0
-        for scalar in unicodeScalars {
+        for scalar in String(self).unicodeScalars {
             if scalar.isChinese {
                 count += 1
             }
@@ -56,7 +56,8 @@ extension String {
 extension UnicodeScalar {
     // 判断字符是否是中文的扩展
     var isChinese: Bool {
-        return ("一" <= self && self <= "龥")
+        //return ("一" <= self && self <= "龥")
+        return (0x4E00 <= value && value <= 0x9FFF)
     }
 }
 
@@ -79,8 +80,6 @@ struct TasksMenuView: View {
         //let container = CKContainer.default()
         let db = container.privateCloudDatabase
         let query = CKQuery(recordType: "Task", predicate: NSPredicate(value: true))
-        
-        
         db.perform(query, inZoneWith: nil) { (records, queryError) in
             if let error = queryError {
                     print("查询任务时出错: \(error.localizedDescription)")
@@ -88,7 +87,6 @@ struct TasksMenuView: View {
                     DispatchQueue.main.async {
                         self.tasks = records.map { record in
                             Task(
-                                
                                 id: record.recordID.recordName,
                                 name: record["name"] as? String ?? "",
                                 SceduleID: record["scheduleID"] as? Int64 ?? 0,
@@ -104,3 +102,9 @@ struct TasksMenuView: View {
     }
 }
 
+struct TasksMenuView_Previews: PreviewProvider {
+    static var previews: some View {
+        TasksMenuView()
+    }
+}
+   
