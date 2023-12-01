@@ -64,41 +64,72 @@ extension UnicodeScalar {
 
 struct TasksMenuView: View {
     @State private var tasks: [Task] = []
+    
+    init() {
+        loadTasks()
+    }
 
     var body: some View {
-        List(tasks) { task in
-            Text(task.name)
-        }
-        .onAppear {
-            loadTasks()
+        ZStack {
+            Image("BG")
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .scaleEffect(x: -1)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 10) { // 将 alignment 设置为 .leading
+                    GeometryReader { geo in
+                        HStack {
+                            Text("任务列表")
+                                .font(.title2)
+                                .padding(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                                .background(RoundedRectangle(cornerRadius: 8).foregroundColor(.yellow.opacity(1.5)))
+                                .bold()
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 100)
+
+                        List(tasks) { task in
+                            Text(task.name)
+                                .foregroundColor(.black)
+                        }
+                        .listRowBackground(Color.orange)
+                        .onAppear {
+                            loadTasks()
+                        }
+                    }
+                    .padding()
+                }
+            }
         }
     }
+
+
 
     private func loadTasks() {
         // 使用 CloudKit 查询任务列表数据
         let container = CKContainer(identifier: "iCloud.TaskClock")
-        //let container = CKContainer.default()
         let db = container.privateCloudDatabase
         let query = CKQuery(recordType: "Task", predicate: NSPredicate(value: true))
         db.perform(query, inZoneWith: nil) { (records, queryError) in
             if let error = queryError {
-                    print("查询任务时出错: \(error.localizedDescription)")
-                } else if let records = records {
-                    DispatchQueue.main.async {
-                        self.tasks = records.map { record in
-                            Task(
-                                id: record.recordID.recordName,
-                                name: record["name"] as? String ?? "",
-                                SceduleID: record["scheduleID"] as? Int64 ?? 0,
-                                isActivated: record["isActivated"] as? Bool ?? false,
-                                createtime: record["createtime"] as? TimeZone ?? TimeZone.current,
-                                updatetime: record["updatetime"] as? TimeZone ?? TimeZone.current
-                            )
-                        }
+                print("查询任务时出错: \(error.localizedDescription)")
+            } else if let records = records {
+                DispatchQueue.main.async {
+                    self.tasks = records.map { record in
+                        Task(
+                            id: record.recordID.recordName,
+                            name: record["name"] as? String ?? "",
+                            SceduleID: record["scheduleID"] as? Int64 ?? 0,
+                            isActivated: record["isActivated"] as? Bool ?? false,
+                            createtime: record["createtime"] as? TimeZone ?? TimeZone.current,
+                            updatetime: record["updatetime"] as? TimeZone ?? TimeZone.current
+                        )
                     }
-                    print("开始打印数据",self.tasks)
                 }
+                print("开始打印数据",self.tasks)
             }
+        }
     }
 }
 
@@ -107,4 +138,4 @@ struct TasksMenuView_Previews: PreviewProvider {
         TasksMenuView()
     }
 }
-   
+
