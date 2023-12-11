@@ -7,19 +7,25 @@
 
 import SwiftUI
 import CloudKit
+import os
 
 // 定义任务列表的数据结构
-struct Task: Identifiable {
-    var id: String
-    var name: String {
+class Task: ObservableObject, Identifiable{
+    @Published var  id: String
+     @Published var name: String {
         didSet {
             // 检查并限制中文字符数量
             limitChineseCharacterCount()
         }
     }
-    var isActivated: Bool // 任务是否启用
-    var createtime: TimeZone
-    var updatetime: TimeZone
+    @Published var isActivated: Bool // 任务是否启用
+    // 初始化方法
+    init(id: String, name: String, isActivated: Int) {
+        self.id = id
+        self.name = name
+        self.isActivated = isActivated == 1  // Convert Int to Bool
+    }
+
 
     // 检查中文字符数量是否超过20的私有方法
     private func limitChineseCharacterCount() {
@@ -37,7 +43,22 @@ struct Task: Identifiable {
         // 例如，@State private var isShowingErrorAlert = false
         // 然后在这里设置 isShowingErrorAlert = true
         // 在视图中使用 .alert(isPresented: $isShowingErrorAlert) { ... } 来显示 Alert
+        
         print("超过20个中文字符，请重新输入")
+    }
+}
+// 在 Task 类中添加一个计算属性，该属性返回对应于 CKRecord 的实例
+extension Task {
+    var record: CKRecord {
+        let record = CKRecord(recordType: "Task")
+
+        record["id"] = self.id as CKRecordValue
+        record["name"] = self.name as CKRecordValue
+        record["isActivated"] = self.isActivated as CKRecordValue
+//        record["createtime"] = self.createtime as any CKRecordValue as CKRecordValue
+//        record["updatetime"] = self.updatetime as any CKRecordValue as CKRecordValue
+
+        return record
     }
 }
 
@@ -66,6 +87,7 @@ struct TasksMenuView: View {
     @State private var tasks: [Task] = []
     @State private var newTaskName: String = ""
     @State private var isShowingErrorAlert = false
+    @State private var refreshView = false
 
     init() {
         loadTasks()
@@ -77,6 +99,7 @@ struct TasksMenuView: View {
                 .resizable()
                 .aspectRatio(contentMode: .fill)
                 .scaleEffect(x: -1)
+                .ignoresSafeArea(.keyboard)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
@@ -92,14 +115,17 @@ struct TasksMenuView: View {
                         .frame(height: 100)
 
                         // 列表显示任务
-                        List(tasks) { task in
-                            Text(task.name)
-                                .foregroundColor(.black)
+                        List {
+                            ForEach(tasks) { task in
+                                Text(task.name)
+                                    .foregroundColor(.black)
+                            }
+                            .listRowBackground(Color.orange)
                         }
-                        .listRowBackground(Color.orange)
                         .onAppear {
-                            loadTasks()
+                            print("视图出现。任务数量：\(tasks.count)")
                         }
+
                     }
                     .padding()
 
@@ -123,6 +149,7 @@ struct TasksMenuView: View {
                                 .padding()
                                 .background(RoundedRectangle(cornerRadius: 8).foregroundColor(.yellow))
                                 .foregroundColor(.black)
+                                
                         }
                     }
                     .padding()
@@ -132,9 +159,11 @@ struct TasksMenuView: View {
                 Alert(title: Text("超过20个中文字符，请重新输入"))
             }
         }
+        .ignoresSafeArea(.keyboard)
     }
 
     private func addTask() {
+
         let chineseCharacterCount = newTaskName.countChineseCharacters()
         if chineseCharacterCount > 20 {
             isShowingErrorAlert = true
@@ -142,69 +171,96 @@ struct TasksMenuView: View {
             let newTask = Task(
                 id: UUID().uuidString,
                 name: newTaskName,
-                isActivated: false,
-                createtime: TimeZone.current,
-                updatetime: TimeZone.current
+                isActivated: 1
             )
 
             tasks.append(newTask)
             newTaskName = ""
 
             // 将新任务数据同步到 CloudKit 中
+            print("新任务详情：ID - \(newTask.id)，名称 - \(newTask.name)，是否激活 - \(newTask.isActivated)")
             TaskToCloudKit(task: newTask)
+           
+            
+            // 刷新视图
+            refreshView.toggle()
         }
     }
-
     private func TaskToCloudKit(task: Task) {
+        // 创建新的 Task 对象
+        let newTask = Task(
+            id: UUID().uuidString,
+            name: task.name,
+            isActivated: 1
+        )
+
         let container = CKContainer(identifier: "iCloud.TaskClock")
         let db = container.privateCloudDatabase
+        let taskRecord = newTask.record
 
-        // 创建 CKRecord 对象
-        let record = CKRecord(recordType: "Task")
-        record["id"] = task.id
-        record["name"] = task.name
-        record["isActivated"] = task.isActivated
-        if let createtimeData = try? NSKeyedArchiver.archivedData(withRootObject: task.createtime, requiringSecureCoding: false) {
-            record["createtime"] = createtimeData as CKRecordValue
-        }
-        if let updatetimeData = try? NSKeyedArchiver.archivedData(withRootObject: task.updatetime, requiringSecureCoding: false) {
-            record["updatetime"] = updatetimeData as CKRecordValue
-        }
-
-        // 将 CKRecord 保存到 CloudKit 数据库
-        db.save(record) { (record, error) in
-            if let error = error {
+        db.save(taskRecord) { (record, dberror) in
+            if let error = dberror {
                 print("保存任务到 CloudKit 出错: \(error.localizedDescription)")
-            } else {
-                print("任务保存到 CloudKit 成功")
+            } else if let record = record {
+                let savedTask = Task(
+                    id: record.recordID.recordName,
+                    name: record["name"] as? String ?? "",
+                    isActivated: record["isActivated"] as? Int ?? 0
+                )
+
+                OperationQueue.main.addOperation {
+                    self.tasks.append(savedTask)
+                }
+                print("CKRecord已保存: \(record.debugDescription)")
+                print("任务保存到 CloudKit 成功 \(self.tasks)")
             }
         }
     }
-
 
     private func loadTasks() {
         let container = CKContainer(identifier: "iCloud.TaskClock")
         let db = container.privateCloudDatabase
         let query = CKQuery(recordType: "Task", predicate: NSPredicate(value: true))
-        db.perform(query, inZoneWith: nil) { (records, queryError) in
-            if let error = queryError {
-                print("查询任务时出错: \(error.localizedDescription)")
-            } else if let records = records {
-                DispatchQueue.main.async {
-                    self.tasks = records.map { record in
-                        Task(
-                            id: record["id"] as? String ?? "",
+
+        db.fetch(withQuery: query) { (result: Result<(matchResults: [(CKRecord.ID, Result<CKRecord, Error>)], queryCursor: CKQueryOperation.Cursor?), Error>) in
+            switch result {
+            case .success(let matchResults):
+                var tasks: [Task] = []
+
+                for (recordID, recordResult) in matchResults.0 {
+                    switch recordResult {
+                    case .success(let record):
+                        print("Record ID: \(recordID.recordName)")
+                        print("Record Data: \(record)")
+
+                        let task = Task(
+                            id: record.recordID.recordName,
                             name: record["name"] as? String ?? "",
-                            isActivated: record["isActivated"] as? Bool ?? false,
-                            createtime: record["createtime"] as? TimeZone ?? TimeZone.current,
-                            updatetime: record["updatetime"] as? TimeZone ?? TimeZone.current
+                            isActivated: record["isActivated"] as? Int ?? 0
                         )
+                        tasks.append(task)
+
+                    case .failure(let error):
+                        print("获取记录失败: \(error.localizedDescription)")
                     }
                 }
-                print("开始打印数据", self.tasks)
+                DispatchQueue.main.async {
+                    self.tasks = tasks
+                    print("匹配的结果: \(tasks)")
+                    print("在 DispatchQueue 中的任务: \(self.tasks)")
+
+                }
+                
+            case .failure(let error):
+                print("查询任务时出错: \(error.localizedDescription)")
             }
         }
     }
+
+
+
+
+
 }
 
 
