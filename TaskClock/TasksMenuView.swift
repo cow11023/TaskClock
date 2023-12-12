@@ -7,10 +7,11 @@
 
 import SwiftUI
 import CloudKit
-import os
+import Combine
 
 // 定义任务列表的数据结构
 class Task: ObservableObject, Identifiable{
+    @Published var tasks: [Task] = []
     @Published var  id: String
      @Published var name: String {
         didSet {
@@ -19,6 +20,8 @@ class Task: ObservableObject, Identifiable{
         }
     }
     @Published var isActivated: Bool // 任务是否启用
+    // PassthroughSubject
+       var objectWillChange = PassthroughSubject<Void, Never>()
     // 初始化方法
     init(id: String, name: String, isActivated: Int) {
         self.id = id
@@ -85,6 +88,7 @@ extension UnicodeScalar {
 struct TasksMenuView: View {
     
     @State private var tasks: [Task] = []
+    @State private var isDataLoaded = false
     @State private var newTaskName: String = ""
     @State private var isShowingErrorAlert = false
     @State private var refreshView = false
@@ -117,18 +121,21 @@ struct TasksMenuView: View {
                         // 列表显示任务
                         List {
                             ForEach(tasks) { task in
-                                Text(task.name)
+                                Text("任务名称: \(task.name)")
                                     .foregroundColor(.black)
+                                    .listRowBackground(Color.red)
+                                    .bold()
                             }
-                            .listRowBackground(Color.orange)
                         }
                         .onAppear {
-                            print("视图出现。任务数量：\(tasks.count)")
+                            if !isDataLoaded {
+                                loadTasks()
+                                print("视图出现。任务数量：\(tasks.count)")
+                            }
                         }
 
                     }
                     .padding()
-
                     // Spacer() 添加垂直空间
                     Spacer()
 
@@ -255,6 +262,7 @@ struct TasksMenuView: View {
                 print("查询任务时出错: \(error.localizedDescription)")
             }
         }
+        isDataLoaded = true
     }
 
 
