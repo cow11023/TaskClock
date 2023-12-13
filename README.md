@@ -26,4 +26,4 @@
 
 2023.12.13 增加任务列表页面下加载任务列表的逻辑
 
-<img src="https://p.ipic.vip/btp9jz.png" alt="image-20231213182107000" style="zoom: 25%;" />
+<img src="https://p.ipic.vip/btp9jz.png" alt="image-20231213182107000" style="zoom: 15%;" />
