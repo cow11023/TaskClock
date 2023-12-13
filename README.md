@@ -24,6 +24,6 @@
 
 ![image-20231202004437627](https://p.ipic.vip/rn7n5y.png)
 
-2023.12.13 增加任务列表页面下加载任务列表的逻辑
+2023.12.13 增加任务列表页面下加载任务列表的逻辑以及主页面上的退出逻辑
 
-<img src="https://p.ipic.vip/btp9jz.png" alt="image-20231213182107000" style="zoom: 15%;" />
+![image-20231213232037081](https://p.ipic.vip/ud5to4.png)
