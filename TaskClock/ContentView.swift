@@ -55,7 +55,8 @@ struct ContentView: View {
 
                         // 退出按钮
                         Button(action: {
-                            // 处理退出逻辑
+                            //退出逻辑
+                            exit(0)
                             
                         }) {
                             Text("退出APP")
@@ -75,6 +76,7 @@ struct ContentView: View {
             }
         }
     }
+
 }
 
 struct ContentView_Previews: PreviewProvider {
