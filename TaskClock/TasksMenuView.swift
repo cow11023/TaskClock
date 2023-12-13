@@ -28,8 +28,8 @@ class Task: ObservableObject, Identifiable{
         self.name = name
         self.isActivated = isActivated == 1  // Convert Int to Bool
     }
-
-
+    // 添加 Identifiable 协议需要的 id 属性
+        var taskId: String { id }
     // 检查中文字符数量是否超过20的私有方法
     private func limitChineseCharacterCount() {
         let chineseCharacterCount = name.countChineseCharacters()
@@ -93,9 +93,9 @@ struct TasksMenuView: View {
     @State private var isShowingErrorAlert = false
     @State private var refreshView = false
 
-    init() {
-        loadTasks()
-    }
+//    init() {
+//        loadTasks()
+//    }
 
     var body: some View {
         ZStack {
@@ -118,21 +118,7 @@ struct TasksMenuView: View {
                         .frame(maxWidth: .infinity)
                         .frame(height: 100)
 
-                        // 列表显示任务
-                        List {
-                            ForEach(tasks) { task in
-                                Text("任务名称: \(task.name)")
-                                    .foregroundColor(.black)
-                                    .listRowBackground(Color.red)
-                                    .bold()
-                            }
-                        }
-                        .onAppear {
-                            if !isDataLoaded {
-                                loadTasks()
-                                print("视图出现。任务数量：\(tasks.count)")
-                            }
-                        }
+                        
 
                     }
                     .padding()
@@ -158,8 +144,24 @@ struct TasksMenuView: View {
                                 .foregroundColor(.black)
                                 
                         }
+                    }                }
+                VStack {
+                       ForEach(tasks) { task in
+                           Text("任务名称: \(task.name)\n")
+                               .font(.title)
+                               .multilineTextAlignment(.center) // 设置文本居中
+                               .lineLimit(nil) // 允许文本多行显示
+                               .background(Color.red) // 设置每个任务的背景颜色
+                               .bold()
+                       }
+                   }
+                .frame(width: 380, height: 300) // 设置列表的宽度和高度
+                .background(Color.yellow) // 设置HStack的背景色
+                .onAppear {
+                    if !isDataLoaded {
+                        loadTasks()
+                        print("视图出现。任务数量：\(tasks.count)")
                     }
-                    .padding()
                 }
             }
             .alert(isPresented: $isShowingErrorAlert) {
