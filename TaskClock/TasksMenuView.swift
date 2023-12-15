@@ -26,7 +26,7 @@ class Task: ObservableObject, Identifiable{
     init(id: String, name: String, isActivated: Int) {
         self.id = id
         self.name = name
-        self.isActivated = isActivated == 1  // Convert Int to Bool
+        self.isActivated = isActivated == 0  // Convert Int to Bool
     }
     // 添加 Identifiable 协议需要的 id 属性
         var taskId: String { id }
@@ -58,8 +58,6 @@ extension Task {
         record["id"] = self.id as CKRecordValue
         record["name"] = self.name as CKRecordValue
         record["isActivated"] = self.isActivated as CKRecordValue
-//        record["createtime"] = self.createtime as any CKRecordValue as CKRecordValue
-//        record["updatetime"] = self.updatetime as any CKRecordValue as CKRecordValue
 
         return record
     }
@@ -92,6 +90,8 @@ struct TasksMenuView: View {
     @State private var newTaskName: String = ""
     @State private var isShowingErrorAlert = false
     @State private var refreshView = false
+    @Environment(\.presentationMode) var presentationMode
+
 
 //    init() {
 //        loadTasks()
@@ -137,6 +137,11 @@ struct TasksMenuView: View {
                         Button(action: {
                             // 点击按钮时调用添加任务的逻辑
                             addTask()
+                            DispatchQueue.main.async {
+                                refreshView.toggle()
+                                loadTasks()
+                                
+                            }
                         }) {
                             Text("添加任务")
                                 .padding()
@@ -146,30 +151,54 @@ struct TasksMenuView: View {
                         }
                     }                }
                 VStack {
-                       ForEach(tasks) { task in
-                           Text("任务名称: \(task.name)\n")
-                               .font(.title)
-                               .multilineTextAlignment(.center) // 设置文本居中
-                               .lineLimit(nil) // 允许文本多行显示
-                               .background(Color.red) // 设置每个任务的背景颜色
-                               .bold()
-                       }
-                   }
-                .frame(width: 380, height: 300) // 设置列表的宽度和高度
-                .background(Color.yellow) // 设置HStack的背景色
-                .onAppear {
-                    if !isDataLoaded {
-                        loadTasks()
-                        print("视图出现。任务数量：\(tasks.count)")
+                    ForEach(tasks) { task in
+                        HStack {
+                            Text("任务名称: \(task.name)\n")
+                                .font(.title2)
+                                .multilineTextAlignment(.center)
+                                .lineLimit(nil)
+                                .background(task.isActivated ? Color.green : Color.red)//根据任务状态设置背景颜色
+                                .bold()
+
+                            Button(action: {
+                                task.isActivated.toggle()
+                                updateTaskActivationStatus(id: task.id, isActivated: task.isActivated)
+                                // 刷新视图
+                                DispatchQueue.main.async {
+                                    refreshView.toggle()
+                                    loadTasks()
+                                    
+                                }
+                            }) {
+                                Text(task.isActivated ? "禁用" : "启用")
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 10)
+                                    .background(task.isActivated ? Color.red : Color.green)
+                                    .cornerRadius(5)
+                                    
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                        }
+                    }
+                    .background(Color.red) // 设置整体背景颜色
+                    
+                }
+
+                    .frame(width: 380, height: 300) // 设置列表的宽度和高度
+                    .background(Color.yellow) // 设置HStack的背景色
+                    .onAppear {
+                        if !isDataLoaded {
+                            loadTasks()
+                            print("视图出现。任务数量：\(tasks.count)")
+                        }
                     }
                 }
+                .alert(isPresented: $isShowingErrorAlert) {
+                    Alert(title: Text("超过20个中文字符，请重新输入"))
+                }
             }
-            .alert(isPresented: $isShowingErrorAlert) {
-                Alert(title: Text("超过20个中文字符，请重新输入"))
-            }
+            .ignoresSafeArea(.keyboard)
         }
-        .ignoresSafeArea(.keyboard)
-    }
 
     private func addTask() {
 
@@ -180,7 +209,7 @@ struct TasksMenuView: View {
             let newTask = Task(
                 id: UUID().uuidString,
                 name: newTaskName,
-                isActivated: 1
+                isActivated: 0
             )
 
             tasks.append(newTask)
@@ -266,6 +295,82 @@ struct TasksMenuView: View {
         }
         isDataLoaded = true
     }
+
+    // 这是一个简化的 CloudKit 操作，实际中需要更多的错误处理和验证逻辑
+    private func updateTaskActivationStatus(id: String, isActivated: Bool) {
+        print("尝试更新任务状态，任务ID：\(id)，是否启用：\(isActivated)")
+
+        // 只允许存在一个已启用的任务
+        if isActivated {
+            self.deactivateAllOtherTasks(except: id)
+        }
+
+        // 创建 DispatchGroup 以确保异步任务同步执行
+        let dispatchGroup = DispatchGroup()
+        // 进入 DispatchGroup，标记异步任务的开始
+        let container = CKContainer(identifier: "iCloud.TaskClock")
+        let db = container.privateCloudDatabase
+        let recordID = CKRecord.ID(recordName: id)
+
+        // 异步操作：从 CloudKit 中获取记录
+        dispatchGroup.enter()
+        db.fetch(withRecordID: recordID) { (record, error) in
+            // defer 语句确保在离开作用域时离开 DispatchGroup
+            defer {
+                dispatchGroup.leave()
+            }
+
+            if let error = error {
+                print("获取记录时出错: \(error.localizedDescription)")
+                return
+            }
+
+            if let record = record {
+                // 仅当任务处于未启用状态时切换 isActivated 的值
+                if (record["isActivated"] == nil) as? Bool ?? false {
+                    let newValue = !isActivated
+                    record["isActivated"] = newValue as CKRecordValue
+
+                    // 异步操作：保存记录
+                    dispatchGroup.enter()
+                    db.save(record) { (savedRecord, saveError) in
+                        if let saveError = saveError {
+                            print("保存记录时出错: \(saveError.localizedDescription)")
+                        } else {
+                            print("记录成功更新")
+
+                            // 在主线程中更新任务状态
+                            if let index = self.tasks.firstIndex(where: { $0.id == id }) {
+                                self.tasks[index].isActivated = newValue
+                                DispatchQueue.main.async {
+                                    self.tasks[index].isActivated.toggle()
+                                }
+                            }
+                        }
+                        dispatchGroup.leave()
+                    }
+                }
+            }
+        }
+
+        dispatchGroup.notify(queue: .main) {
+            // 所有异步任务完成后的回调
+            print("所有异步任务完成")
+        }
+    }
+
+
+    // 关闭除指定任务外的所有任务
+    private func deactivateAllOtherTasks(except Id: String) {
+        for task in tasks {
+            if task.id != Id {
+                task.isActivated = false
+                // 更新 CloudKit 中的任务状态
+                updateTaskActivationStatus(id: task.id, isActivated: false)
+            }
+        }
+    }
+
 
 
 
