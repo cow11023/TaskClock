@@ -26,7 +26,8 @@ class Task: ObservableObject, Identifiable{
     init(id: String, name: String, isActivated: Int) {
         self.id = id
         self.name = name
-        self.isActivated = isActivated == 0  // Convert Int to Bool
+        self.isActivated = (isActivated == 0) ? false : true
+
     }
     // 添加 Identifiable 协议需要的 id 属性
         var taskId: String { id }
@@ -116,11 +117,7 @@ struct TasksMenuView: View {
                                 .bold()
                         }
                         .frame(maxWidth: .infinity)
-                        .frame(height: 100)
-
-                        
-
-                    }
+                        .frame(height: 100)}
                     .padding()
                     // Spacer() 添加垂直空间
                     Spacer()
@@ -137,10 +134,9 @@ struct TasksMenuView: View {
                         Button(action: {
                             // 点击按钮时调用添加任务的逻辑
                             addTask()
-                            DispatchQueue.main.async {
-                                refreshView.toggle()
+                            // CloudKit 更新完毕后再刷新视图
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                                 loadTasks()
-                                
                             }
                         }) {
                             Text("添加任务")
@@ -165,13 +161,13 @@ struct TasksMenuView: View {
                                 updateTaskActivationStatus(id: task.id, isActivated: task.isActivated)
                                 // 刷新视图
                                 DispatchQueue.main.async {
-                                    refreshView.toggle()
                                     loadTasks()
-                                    
+                                    refreshView.toggle()
                                 }
                             }) {
                                 Text(task.isActivated ? "禁用" : "启用")
                                     .foregroundColor(.white)
+                                    .font(.title2)
                                     .padding(.horizontal, 10)
                                     .background(task.isActivated ? Color.red : Color.green)
                                     .cornerRadius(5)
@@ -217,24 +213,15 @@ struct TasksMenuView: View {
 
             // 将新任务数据同步到 CloudKit 中
             print("新任务详情：ID - \(newTask.id)，名称 - \(newTask.name)，是否激活 - \(newTask.isActivated)")
-            TaskToCloudKit(task: newTask)
-           
-            
-            // 刷新视图
-            refreshView.toggle()
+            TaskToCloudKit(task: newTask)   
         }
     }
     private func TaskToCloudKit(task: Task) {
-        // 创建新的 Task 对象
-        let newTask = Task(
-            id: UUID().uuidString,
-            name: task.name,
-            isActivated: 1
-        )
 
         let container = CKContainer(identifier: "iCloud.TaskClock")
         let db = container.privateCloudDatabase
-        let taskRecord = newTask.record
+        let taskRecord = task.record
+
 
         db.save(taskRecord) { (record, dberror) in
             if let error = dberror {
@@ -294,6 +281,7 @@ struct TasksMenuView: View {
             }
         }
         isDataLoaded = true
+        refreshView.toggle()
     }
 
     // 这是一个简化的 CloudKit 操作，实际中需要更多的错误处理和验证逻辑
@@ -326,36 +314,46 @@ struct TasksMenuView: View {
             }
 
             if let record = record {
-                // 仅当任务处于未启用状态时切换 isActivated 的值
-                if (record["isActivated"] == nil) as? Bool ?? false {
-                    let newValue = !isActivated
-                    record["isActivated"] = newValue as CKRecordValue
-
-                    // 异步操作：保存记录
-                    dispatchGroup.enter()
-                    db.save(record) { (savedRecord, saveError) in
-                        if let saveError = saveError {
-                            print("保存记录时出错: \(saveError.localizedDescription)")
-                        } else {
-                            print("记录成功更新")
-
-                            // 在主线程中更新任务状态
-                            if let index = self.tasks.firstIndex(where: { $0.id == id }) {
-                                self.tasks[index].isActivated = newValue
-                                DispatchQueue.main.async {
-                                    self.tasks[index].isActivated.toggle()
-                                }
-                            }
-                        }
+                // 无论任务当前状态如何，都切换 isActivated 的值
+                let newValue = isActivated ? 1 : 0
+                record["isActivated"] = newValue as CKRecordValue
+                // 异步操作：保存记录
+                dispatchGroup.enter()
+                db.save(record) { (savedRecord, saveError) in
+                    defer {
                         dispatchGroup.leave()
                     }
+
+                    if let saveError = saveError {
+                        print("保存记录时出错: \(saveError.localizedDescription)")
+                    } else {
+                        if let savedRecord = savedRecord {
+                            print("记录成功更新")
+                            // 在主线程中更新任务状态
+                            if let index = self.tasks.firstIndex(where: { $0.id == id }) {
+                                self.tasks[index].isActivated = (newValue != 0)
+                                DispatchQueue.main.async {
+                                    self.tasks[index].isActivated.toggle()
+                                    print("保存到 CloudKit 前的任务状态：\(self.tasks[index].isActivated)")
+
+                                    // 保存到 CloudKit 后的记录
+                                    print("保存到 CloudKit 后的记录：\(savedRecord)")
+                                }
+                            }
+                        } else {
+                            print("未能获取保存的记录")
+                        }
+                    }
                 }
+
             }
         }
 
         dispatchGroup.notify(queue: .main) {
             // 所有异步任务完成后的回调
             print("所有异步任务完成")
+            // 保存记录完成后加载任务
+            self.loadTasks()
         }
     }
 
@@ -370,12 +368,6 @@ struct TasksMenuView: View {
             }
         }
     }
-
-
-
-
-
-
 }
 
 

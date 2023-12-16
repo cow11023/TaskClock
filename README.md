@@ -26,4 +26,8 @@
 
 2023.12.13 增加任务列表页面下加载任务列表的逻辑以及主页面上的退出逻辑
 
-![image-20231213232037081](https://p.ipic.vip/ud5to4.png)
+<img src="https://p.ipic.vip/ud5to4.png" alt="image-20231213232037081" style="zoom:55%;" />
+
+2023.12.17 增加任务列表页面下任务列表的显示和启用/禁用逻辑的编写
+
+<img src="https://p.ipic.vip/86p367.png" alt="image-20231217004950300" style="zoom:18%;" />
