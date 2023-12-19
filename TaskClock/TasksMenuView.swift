@@ -91,13 +91,10 @@ struct TasksMenuView: View {
     @State private var newTaskName: String = ""
     @State private var isShowingErrorAlert = false
     @State private var refreshView = false
-    @Environment(\.presentationMode) var presentationMode
-
-
-//    init() {
-//        loadTasks()
-//    }
-
+    @State private var isShowingAlert = true
+    @State private var alertMessage = ""
+    
+    // SwiftUI 代码，用于定义应用程序中一个视图的结构和行为。
     var body: some View {
         ZStack {
             Image("BG")
@@ -105,7 +102,7 @@ struct TasksMenuView: View {
                 .aspectRatio(contentMode: .fill)
                 .scaleEffect(x: -1)
                 .ignoresSafeArea(.keyboard)
-
+            
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
                     GeometryReader { geo in
@@ -119,22 +116,17 @@ struct TasksMenuView: View {
                         .frame(maxWidth: .infinity)
                         .frame(height: 100)}
                     .padding()
-                    // Spacer() 添加垂直空间
+                    
                     Spacer()
-
-                    // Spacer() 添加额外的垂直空间，这里可以调整高度
                     Spacer().frame(height: 120)
-
-                    // 添加用于创建任务的按钮和文本字段
+                    
                     HStack {
                         TextField("新任务", text: $newTaskName)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
                             .padding(.horizontal)
-
+                        
                         Button(action: {
-                            // 点击按钮时调用添加任务的逻辑
                             addTask()
-                            // CloudKit 更新完毕后再刷新视图
                             DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                                 loadTasks()
                             }
@@ -143,9 +135,9 @@ struct TasksMenuView: View {
                                 .padding()
                                 .background(RoundedRectangle(cornerRadius: 8).foregroundColor(.yellow))
                                 .foregroundColor(.black)
-                                
                         }
-                    }                }
+                    }
+                }
                 VStack {
                     ForEach(tasks) { task in
                         HStack {
@@ -153,13 +145,12 @@ struct TasksMenuView: View {
                                 .font(.title2)
                                 .multilineTextAlignment(.center)
                                 .lineLimit(nil)
-                                .background(task.isActivated ? Color.green : Color.red)//根据任务状态设置背景颜色
+                                .background(task.isActivated ? Color.green : Color.red)
                                 .bold()
-
+                            
                             Button(action: {
                                 task.isActivated.toggle()
                                 updateTaskActivationStatus(id: task.id, isActivated: task.isActivated)
-                                // 刷新视图
                                 DispatchQueue.main.async {
                                     loadTasks()
                                     refreshView.toggle()
@@ -171,33 +162,59 @@ struct TasksMenuView: View {
                                     .padding(.horizontal, 10)
                                     .background(task.isActivated ? Color.red : Color.green)
                                     .cornerRadius(5)
-                                    
                             }
                             .buttonStyle(PlainButtonStyle())
+                            
+                            Button(action: {
+                                removeTask(withID: task.id)
+                                DispatchQueue.main.async {
+                                    loadTasks()
+                                    refreshView.toggle()
+                                }
+                            }) {
+                                Text("删除")
+                                    .foregroundColor(.white)
+                                    .font(.title2)
+                                    .padding(.horizontal, 10)
+                                    .background(Color.red)
+                                    .cornerRadius(5)
+                            }
+                            .buttonStyle(PlainButtonStyle()
+                            )
+                        }
+                        .alert(isPresented: Binding<Bool>(
+                            get: {
+                                guard isShowingAlert else {
+                                    return false
+                                }
+                                if task.isActivated {
+                                    showAlert(message: "已启用的任务不能删除")
+                                }
+                                return alertMessage == "任务删除成功"
+                            },
+                            set: { _ in }
+                        )) {
+                            Alert(title: Text(alertMessage))
                         }
                     }
-                    .background(Color.red) // 设置整体背景颜色
-                    
                 }
-
-                    .frame(width: 380, height: 300) // 设置列表的宽度和高度
-                    .background(Color.yellow) // 设置HStack的背景色
-                    .onAppear {
-                        if !isDataLoaded {
-                            loadTasks()
-                            print("视图出现。任务数量：\(tasks.count)")
-                        }
+                .frame(width: 380, height: 300)
+                .background(Color.yellow)
+                .onAppear {
+                    if !isDataLoaded {
+                        loadTasks()
+                        print("视图出现。任务数量：\(tasks.count)")
                     }
-                }
-                .alert(isPresented: $isShowingErrorAlert) {
-                    Alert(title: Text("超过20个中文字符，请重新输入"))
                 }
             }
-            .ignoresSafeArea(.keyboard)
+            .alert(isPresented: $isShowingErrorAlert) {
+                Alert(title: Text("超过20个中文字符，请重新输入"))
+            }
         }
+        .ignoresSafeArea(.keyboard)
+    }
 
     private func addTask() {
-
         let chineseCharacterCount = newTaskName.countChineseCharacters()
         if chineseCharacterCount > 20 {
             isShowingErrorAlert = true
@@ -211,17 +228,15 @@ struct TasksMenuView: View {
             tasks.append(newTask)
             newTaskName = ""
 
-            // 将新任务数据同步到 CloudKit 中
             print("新任务详情：ID - \(newTask.id)，名称 - \(newTask.name)，是否激活 - \(newTask.isActivated)")
-            TaskToCloudKit(task: newTask)   
+            TaskToCloudKit(task: newTask)
         }
     }
-    private func TaskToCloudKit(task: Task) {
 
+    private func TaskToCloudKit(task: Task) {
         let container = CKContainer(identifier: "iCloud.TaskClock")
         let db = container.privateCloudDatabase
         let taskRecord = task.record
-
 
         db.save(taskRecord) { (record, dberror) in
             if let error = dberror {
@@ -273,9 +288,8 @@ struct TasksMenuView: View {
                     self.tasks = tasks
                     print("匹配的结果: \(tasks)")
                     print("在 DispatchQueue 中的任务: \(self.tasks)")
-
                 }
-                
+
             case .failure(let error):
                 print("查询任务时出错: \(error.localizedDescription)")
             }
@@ -284,26 +298,20 @@ struct TasksMenuView: View {
         refreshView.toggle()
     }
 
-    // 这是一个简化的 CloudKit 操作，实际中需要更多的错误处理和验证逻辑
     private func updateTaskActivationStatus(id: String, isActivated: Bool) {
         print("尝试更新任务状态，任务ID：\(id)，是否启用：\(isActivated)")
 
-        // 只允许存在一个已启用的任务
         if isActivated {
             self.deactivateAllOtherTasks(except: id)
         }
 
-        // 创建 DispatchGroup 以确保异步任务同步执行
         let dispatchGroup = DispatchGroup()
-        // 进入 DispatchGroup，标记异步任务的开始
+        dispatchGroup.enter()
         let container = CKContainer(identifier: "iCloud.TaskClock")
         let db = container.privateCloudDatabase
         let recordID = CKRecord.ID(recordName: id)
 
-        // 异步操作：从 CloudKit 中获取记录
-        dispatchGroup.enter()
         db.fetch(withRecordID: recordID) { (record, error) in
-            // defer 语句确保在离开作用域时离开 DispatchGroup
             defer {
                 dispatchGroup.leave()
             }
@@ -314,10 +322,8 @@ struct TasksMenuView: View {
             }
 
             if let record = record {
-                // 无论任务当前状态如何，都切换 isActivated 的值
                 let newValue = isActivated ? 1 : 0
                 record["isActivated"] = newValue as CKRecordValue
-                // 异步操作：保存记录
                 dispatchGroup.enter()
                 db.save(record) { (savedRecord, saveError) in
                     defer {
@@ -329,14 +335,11 @@ struct TasksMenuView: View {
                     } else {
                         if let savedRecord = savedRecord {
                             print("记录成功更新")
-                            // 在主线程中更新任务状态
                             if let index = self.tasks.firstIndex(where: { $0.id == id }) {
                                 self.tasks[index].isActivated = (newValue != 0)
                                 DispatchQueue.main.async {
                                     self.tasks[index].isActivated.toggle()
                                     print("保存到 CloudKit 前的任务状态：\(self.tasks[index].isActivated)")
-
-                                    // 保存到 CloudKit 后的记录
                                     print("保存到 CloudKit 后的记录：\(savedRecord)")
                                 }
                             }
@@ -345,31 +348,79 @@ struct TasksMenuView: View {
                         }
                     }
                 }
-
             }
         }
 
         dispatchGroup.notify(queue: .main) {
-            // 所有异步任务完成后的回调
             print("所有异步任务完成")
-            // 保存记录完成后加载任务
             self.loadTasks()
         }
     }
 
-
-    // 关闭除指定任务外的所有任务
     private func deactivateAllOtherTasks(except Id: String) {
         for task in tasks {
             if task.id != Id {
                 task.isActivated = false
-                // 更新 CloudKit 中的任务状态
                 updateTaskActivationStatus(id: task.id, isActivated: false)
             }
         }
     }
-}
 
+    private func removeTask(withID id: String) {
+        guard let index = tasks.firstIndex(where: { $0.id == id }) else {
+            print("任务不存在")
+            return
+        }
+        let taskToDelete = tasks[index]
+
+        if taskToDelete.isActivated {
+            print("已启用的任务不能删除,提示是否显示\(self.isShowingAlert),其打印的字符串为")
+            self.showAlert(message: "已启用的任务不能删除")
+            return
+        }
+        self.updateTaskActivationStatus(id: taskToDelete.id, isActivated: taskToDelete.isActivated)
+
+
+        TaskDelCloudKit(task: taskToDelete, isDelete: true) {
+            print("在 showAlert 异步之前")
+            DispatchQueue.main.async {
+                print("showAlert 内部异步")
+                self.showAlert(message: "任务删除成功")
+                refreshView.toggle()
+            }
+            print("在showAlert 异步之后")
+        }
+    }
+
+    private func showAlert(message: String) {
+         guard isShowingAlert else {
+             print("不需要显示提示，直接返回")
+             return
+         }
+        DispatchQueue.main.async {
+            self.alertMessage = message
+            print("显示的提示字符串为\(message)")
+        }
+    }
+
+    private func TaskDelCloudKit(task: Task,isDelete: Bool,completion: @escaping() -> Void) {
+        let container = CKContainer(identifier: "iCloud.TaskClock")
+        let db = container.privateCloudDatabase
+        if isDelete {
+            let recordID = CKRecord.ID(recordName: task.id)
+            db.delete(withRecordID: recordID) { (recordID, dbError) in
+                if let error = dbError {
+                    print("从 CloudKit 删除任务出错: \(error.localizedDescription)")
+                } else {
+                    print("删除任务成功\(task.id)")
+                    DispatchQueue.main.async {
+                    completion()
+                    }
+                }
+            }
+        }
+    }
+}
 
 struct TasksMenuView_Previews: PreviewProvider {
     static var previews: some View {
