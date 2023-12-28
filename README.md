@@ -30,4 +30,8 @@
 
 2023.12.17 增加任务列表页面下任务列表的显示和启用/禁用逻辑的编写
 
-<img src="https://p.ipic.vip/86p367.png" alt="image-20231217004950300" style="zoom:18%;" />
+<img src="https://p.ipic.vip/86p367.png" alt="image-20231217004950300" style="zoom:10%;" />
+
+2023.12.19 增加任务列表页面下任务列表的删除逻辑和UI的编写
+
+![image-20231219135934430](https://p.ipic.vip/apls0d.png)
