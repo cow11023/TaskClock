@@ -90,7 +90,6 @@ struct TasksMenuView: View {
     @State private var isDataLoaded = false
     @State private var newTaskName: String = ""
     @State private var isShowingErrorAlert = false
-    @State private var isShowingSucuessrAlert = false
     @State private var refreshView = false
     @State private var isShowingAlert = true
     @State private var alertMessage = ""
@@ -122,7 +121,7 @@ struct TasksMenuView: View {
                     Spacer().frame(height: 120)
                     // 显示任务数量的文本
                     Text("任务数量: \(tasks.count)")
-                        .foregroundColor(.red)
+                        .foregroundColor(.green)
                         .bold()
                         .padding(.top, 10)
                     
@@ -200,9 +199,7 @@ struct TasksMenuView: View {
                     }
                 }
             }
-            .alert(isPresented: $isShowingSucuessrAlert) {
-                Alert(title: Text("成功"), message: Text(alertMessage))
-            }
+            
             .alert(isPresented: $isShowingErrorAlert) {
                 Alert(title: Text("错误"), message: Text(alertMessage))
             }
@@ -210,14 +207,16 @@ struct TasksMenuView: View {
         .ignoresSafeArea(.keyboard)
     }
     
+    
+
     func showError(message: String) {
-        isShowingErrorAlert = true
-        alertMessage = message
+        DispatchQueue.main.async {
+            isShowingErrorAlert = true
+            alertMessage = message
+            print("显示错误消息：\(message)")
+        }
     }
-    func showSucess(message: String) {
-        isShowingSucuessrAlert = true
-        alertMessage = message
-    }
+
 
 
     private func addTask() {
@@ -241,12 +240,11 @@ struct TasksMenuView: View {
                     name: newTaskName,
                     isActivated: 0
                 )
-
+                
                 TaskToCloudKit(task: newTask) {
                     // 此闭包在任务成功保存到 CloudKit 后调用
                     self.tasks.append(newTask)
                     newTaskName = ""
-                    showSucess(message: "任务添加成功")
                     refreshView.toggle()
                 }
             }
@@ -395,16 +393,14 @@ struct TasksMenuView: View {
             return
         }
         self.updateTaskActivationStatus(id: taskToDelete.id, isActivated: taskToDelete.isActivated)
-
-
+        
         TaskDelCloudKit(task: taskToDelete, isDelete: true) {
             print("在 showAlert 异步之前")
             DispatchQueue.main.async {
                 print("showAlert 内部异步")
-                showSucess(message: "任务删除成功")
                 refreshView.toggle()
+                
             }
-            print("在showAlert 异步之后")
         }
     }
 
@@ -422,6 +418,7 @@ struct TasksMenuView: View {
                     print("删除任务成功\(task.id)")
                     DispatchQueue.main.async {
                     completion()
+                    print("任务删除成功回调执行完毕")
                     }
                 }
             }
