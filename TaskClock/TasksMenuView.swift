@@ -90,6 +90,7 @@ struct TasksMenuView: View {
     @State private var isDataLoaded = false
     @State private var newTaskName: String = ""
     @State private var isShowingErrorAlert = false
+    @State private var isShowingSucuessrAlert = false
     @State private var refreshView = false
     @State private var isShowingAlert = true
     @State private var alertMessage = ""
@@ -119,6 +120,11 @@ struct TasksMenuView: View {
                     
                     Spacer()
                     Spacer().frame(height: 120)
+                    // 显示任务数量的文本
+                    Text("任务数量: \(tasks.count)")
+                        .foregroundColor(.red)
+                        .bold()
+                        .padding(.top, 10)
                     
                     HStack {
                         TextField("新任务", text: $newTaskName)
@@ -128,7 +134,8 @@ struct TasksMenuView: View {
                         Button(action: {
                             addTask()
                             DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                                loadTasks()
+                                refreshView.toggle()
+                                
                             }
                         }) {
                             Text("添加任务")
@@ -141,10 +148,11 @@ struct TasksMenuView: View {
                 VStack {
                     ForEach(tasks) { task in
                         HStack {
-                            Text("任务名称: \(task.name)\n")
+                            Text("任务名称: \(task.name)")
                                 .font(.title2)
                                 .multilineTextAlignment(.center)
-                                .lineLimit(nil)
+                                .truncationMode(.tail)
+                                .lineLimit(2)
                                 .background(task.isActivated ? Color.green : Color.red)
                                 .bold()
                             
@@ -182,20 +190,6 @@ struct TasksMenuView: View {
                             .buttonStyle(PlainButtonStyle()
                             )
                         }
-                        .alert(isPresented: Binding<Bool>(
-                            get: {
-                                guard isShowingAlert else {
-                                    return false
-                                }
-                                if task.isActivated {
-                                    showAlert(message: "已启用的任务不能删除")
-                                }
-                                return alertMessage == "任务删除成功"
-                            },
-                            set: { _ in }
-                        )) {
-                            Alert(title: Text(alertMessage))
-                        }
                     }
                 }
                 .frame(width: 380, height: 300)
@@ -203,37 +197,64 @@ struct TasksMenuView: View {
                 .onAppear {
                     if !isDataLoaded {
                         loadTasks()
-                        print("视图出现。任务数量：\(tasks.count)")
                     }
                 }
             }
+            .alert(isPresented: $isShowingSucuessrAlert) {
+                Alert(title: Text("成功"), message: Text(alertMessage))
+            }
             .alert(isPresented: $isShowingErrorAlert) {
-                Alert(title: Text("超过20个中文字符，请重新输入"))
+                Alert(title: Text("错误"), message: Text(alertMessage))
             }
         }
         .ignoresSafeArea(.keyboard)
     }
+    
+    func showError(message: String) {
+        isShowingErrorAlert = true
+        alertMessage = message
+    }
+    func showSucess(message: String) {
+        isShowingSucuessrAlert = true
+        alertMessage = message
+    }
+
 
     private func addTask() {
         let chineseCharacterCount = newTaskName.countChineseCharacters()
-        if chineseCharacterCount > 20 {
-            isShowingErrorAlert = true
-        } else {
-            let newTask = Task(
-                id: UUID().uuidString,
-                name: newTaskName,
-                isActivated: 0
-            )
 
-            tasks.append(newTask)
+        if chineseCharacterCount >= 10 {
+            showError(message: "超过10个字符，请重新输入")
+            //输入框归零
             newTaskName = ""
+        } else if tasks.count >= 10 {
+            showError(message: "任务数量已达到10个，不能再添加了")
+            newTaskName = ""
+        } else {
+            // 检查任务名称是否已存在
+            if tasks.contains(where: { $0.name == newTaskName }) {
+                showError(message: "任务已存在")
+                newTaskName = ""
+            } else {
+                let newTask = Task(
+                    id: UUID().uuidString,
+                    name: newTaskName,
+                    isActivated: 0
+                )
 
-            print("新任务详情：ID - \(newTask.id)，名称 - \(newTask.name)，是否激活 - \(newTask.isActivated)")
-            TaskToCloudKit(task: newTask)
+                TaskToCloudKit(task: newTask) {
+                    // 此闭包在任务成功保存到 CloudKit 后调用
+                    self.tasks.append(newTask)
+                    newTaskName = ""
+                    showSucess(message: "任务添加成功")
+                    refreshView.toggle()
+                }
+            }
         }
     }
 
-    private func TaskToCloudKit(task: Task) {
+
+    private func TaskToCloudKit(task: Task, completion: @escaping () -> Void) {
         let container = CKContainer(identifier: "iCloud.TaskClock")
         let db = container.privateCloudDatabase
         let taskRecord = task.record
@@ -242,14 +263,10 @@ struct TasksMenuView: View {
             if let error = dberror {
                 print("保存任务到 CloudKit 出错: \(error.localizedDescription)")
             } else if let record = record {
-                let savedTask = Task(
-                    id: record.recordID.recordName,
-                    name: record["name"] as? String ?? "",
-                    isActivated: record["isActivated"] as? Int ?? 0
-                )
-
                 OperationQueue.main.addOperation {
-                    self.tasks.append(savedTask)
+                    
+                    completion() // 在这里调用完成闭包
+                    
                 }
                 print("CKRecord已保存: \(record.debugDescription)")
                 print("任务保存到 CloudKit 成功 \(self.tasks)")
@@ -368,14 +385,13 @@ struct TasksMenuView: View {
 
     private func removeTask(withID id: String) {
         guard let index = tasks.firstIndex(where: { $0.id == id }) else {
-            print("任务不存在")
+            showError(message: "任务不存在")
             return
         }
         let taskToDelete = tasks[index]
 
         if taskToDelete.isActivated {
-            print("已启用的任务不能删除,提示是否显示\(self.isShowingAlert),其打印的字符串为")
-            self.showAlert(message: "已启用的任务不能删除")
+            showError(message: "已启用的任务不能删除")
             return
         }
         self.updateTaskActivationStatus(id: taskToDelete.id, isActivated: taskToDelete.isActivated)
@@ -385,23 +401,14 @@ struct TasksMenuView: View {
             print("在 showAlert 异步之前")
             DispatchQueue.main.async {
                 print("showAlert 内部异步")
-                self.showAlert(message: "任务删除成功")
+                showSucess(message: "任务删除成功")
                 refreshView.toggle()
             }
             print("在showAlert 异步之后")
         }
     }
 
-    private func showAlert(message: String) {
-         guard isShowingAlert else {
-             print("不需要显示提示，直接返回")
-             return
-         }
-        DispatchQueue.main.async {
-            self.alertMessage = message
-            print("显示的提示字符串为\(message)")
-        }
-    }
+    
 
     private func TaskDelCloudKit(task: Task,isDelete: Bool,completion: @escaping() -> Void) {
         let container = CKContainer(identifier: "iCloud.TaskClock")
