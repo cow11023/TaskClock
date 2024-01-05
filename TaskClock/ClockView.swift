@@ -25,13 +25,16 @@ struct ClockView: View {
             Text(formattedDate)
                 .font(.custom("CuteFont", size: 22))
                 .fontWeight(.bold)
+                .foregroundColor(.black)
                 .padding()
+                .frame(maxWidth: .infinity, alignment: .center) // 设置文本视图居中
             
             Spacer()
         }
         .onAppear {
             updateCurrentDate()
         }
+        
         .onReceive(Timer.publish(every: 5, on: .main, in: .common).autoconnect()) { _ in
             updateCurrentDate()
         }

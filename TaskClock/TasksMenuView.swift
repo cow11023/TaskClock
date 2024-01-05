@@ -96,10 +96,11 @@ struct TasksMenuView: View {
     
     // SwiftUI 代码，用于定义应用程序中一个视图的结构和行为。
     var body: some View {
-        ZStack {
+        GeometryReader { geo in
             Image("BG")
                 .resizable()
-                .aspectRatio(contentMode: .fill)
+                .scaledToFill()
+                .frame(width: geo.size.width, height: geo.size.height)
                 .scaleEffect(x: -1)
                 .ignoresSafeArea(.keyboard)
             
@@ -111,6 +112,7 @@ struct TasksMenuView: View {
                                 .font(.title2)
                                 .padding(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                                 .background(RoundedRectangle(cornerRadius: 8).foregroundColor(.yellow.opacity(1.5)))
+                                .foregroundColor(.black)
                                 .bold()
                         }
                         .frame(maxWidth: .infinity)
@@ -127,9 +129,10 @@ struct TasksMenuView: View {
                     
                     HStack {
                         TextField("新任务", text: $newTaskName)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .textFieldStyle(PlainTextFieldStyle())
                             .padding(.horizontal)
-                        
+                            .background(Color.white)
+                            .bold()
                         Button(action: {
                             addTask()
                             DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
@@ -191,7 +194,7 @@ struct TasksMenuView: View {
                         }
                     }
                 }
-                .frame(width: 380, height: 300)
+                .frame(maxWidth: .infinity)
                 .background(Color.yellow)
                 .onAppear {
                     if !isDataLoaded {
