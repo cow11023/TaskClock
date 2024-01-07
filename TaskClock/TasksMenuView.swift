@@ -227,11 +227,13 @@ struct TasksMenuView: View {
 
         if chineseCharacterCount >= 10 {
             showError(message: "超过10个字符，请重新输入")
-            //输入框归零
+            // 输入框归零
             newTaskName = ""
         } else if tasks.count >= 10 {
             showError(message: "任务数量已达到10个，不能再添加了")
             newTaskName = ""
+        } else if newTaskName.isEmpty {
+            showError(message: "任务名称不能为空")
         } else {
             // 检查任务名称是否已存在
             if tasks.contains(where: { $0.name == newTaskName }) {
@@ -253,6 +255,7 @@ struct TasksMenuView: View {
             }
         }
     }
+
 
 
     private func TaskToCloudKit(task: Task, completion: @escaping () -> Void) {
